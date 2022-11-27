@@ -16,7 +16,6 @@
 
 package io.openmessaging.storage.dledger.command;
 
-
 import io.openmessaging.storage.dledger.client.DLedgerClient;
 import io.openmessaging.storage.dledger.command.utlis.FileTestUtil;
 import io.openmessaging.storage.dledger.core.DLedgerConfig;
@@ -24,7 +23,9 @@ import io.openmessaging.storage.dledger.core.DLedgerServer;
 import io.openmessaging.storage.dledger.core.MemberState;
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import static org.awaitility.Awaitility.await;
 
 public class ServerTestHarness extends ServerTestBase {
 
@@ -39,7 +40,8 @@ public class ServerTestHarness extends ServerTestBase {
         return dLedgerServer;
     }
 
-    protected synchronized DLedgerServer launchServer(String group, String peers, String selfId, String preferredLeaderId) {
+    protected synchronized DLedgerServer launchServer(String group, String peers, String selfId,
+        String preferredLeaderId) {
         DLedgerConfig config = new DLedgerConfig();
         config.setStoreBaseDir(FileTestUtil.TEST_BASE + File.separator + group);
         config.group(group).selfId(selfId).peers(peers);
@@ -76,8 +78,9 @@ public class ServerTestHarness extends ServerTestBase {
         return dLedgerServer;
     }
 
-    protected synchronized DLedgerServer launchServerWithStateMachine(String group, String peers, String selfId, String leaderId,
-                                                      String storeType, int snapshotThreshold, int mappedFileSizeForEntryData) {
+    protected synchronized DLedgerServer launchServerWithStateMachine(String group, String peers, String selfId,
+        String leaderId,
+        String storeType, int snapshotThreshold, int mappedFileSizeForEntryData) {
         DLedgerConfig config = new DLedgerConfig();
         config.group(group).selfId(selfId).peers(peers);
         config.setStoreBaseDir(FileTestUtil.TEST_BASE + File.separator + group);
@@ -103,7 +106,8 @@ public class ServerTestHarness extends ServerTestBase {
         return dLedgerServer;
     }
 
-    protected synchronized DLedgerServer launchServerEnableBatchPush(String group, String peers, String selfId, String leaderId,
+    protected synchronized DLedgerServer launchServerEnableBatchPush(String group, String peers, String selfId,
+        String leaderId,
         String storeType) {
         DLedgerConfig config = new DLedgerConfig();
         config.group(group).selfId(selfId).peers(peers);
@@ -145,6 +149,14 @@ public class ServerTestHarness extends ServerTestBase {
                 leaderServer = server;
             } else if (server.getMemberState().isFollower()) {
                 followerNum.incrementAndGet();
+            } else if (server.getMemberState().isCandidate()) {
+                await().atMost(10, TimeUnit.SECONDS).until(()-> !server.getMemberState().isCandidate());
+                if (server.getMemberState().isLeader()) {
+                    leaderNum.incrementAndGet();
+                    leaderServer = server;
+                } else if (server.getMemberState().isFollower()) {
+                    followerNum.incrementAndGet();
+                }
             }
         }
         return leaderServer;
